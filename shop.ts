@@ -1,56 +1,51 @@
 import { gameConfig } from "./gameConfig";
 import { getPlayerData, updatePlayerData } from "./economy";
 
-export function buyShopItem(itemName: keyof typeof gameConfig.shop.itemPrices): boolean {
+/**
+ * buyShopItem теперь:
+ * - Проверяет стоимость
+ * - Отнимает монеты
+ * - Добавляет itemId в purchasedItems
+ * - Не применяет автоматом (apply/ equip отдельной функцией)
+ */
+export function buyShopItem(itemName: keyof typeof gameConfig.shop.itemPrices) {
   const player = getPlayerData();
-  const price = gameConfig.shop.itemPrices[itemName];
+  const price = (gameConfig as any).shop.itemPrices[itemName];
   if (player.coins < price) {
-    playSound(gameConfig.sound.error);
-    return false;
+    playSound((gameConfig as any).sound.error);
+    return { success: false, reason: "not_enough" };
   }
   player.coins -= price;
-  switch (itemName) {
-    case "booster":
-      player.boosters = (player.boosters ?? 0) + 1;
-      useBooster(player);
-      break;
-    case "extraMove":
-      player.extraMoves = (player.extraMoves ?? 0) + 1;
-      useExtraMove(player);
-      break;
-    case "theme":
-      unlockTheme(player, "new_theme");
-      break;
-    case "diamond":
-      player.diamonds = (player.diamonds ?? 0) + 1;
-      break;
-    default:
-      break;
-  }
+  player.purchasedItems = (player.purchasedItems ?? []).concat(itemName as string);
   updatePlayerData(player);
-  playSound(gameConfig.sound.click);
+  playSound((gameConfig as any).sound.click);
+  return { success: true, itemName };
+}
+
+export function equipItem(itemId: string, slot = "default") {
+  const player = getPlayerData();
+  if (!player.purchasedItems || !player.purchasedItems.includes(itemId)) return false;
+  player.equippedItems = player.equippedItems ?? {};
+  player.equippedItems[slot] = itemId;
+  updatePlayerData(player);
+  playSound((gameConfig as any).sound.click);
   return true;
 }
-export function donateAndBuyCoins(amount: number): boolean {
+
+export function donateAndBuyCoins(amount: number) {
   const player = getPlayerData();
-  if (!gameConfig.shop.donationAmounts.includes(amount)) return false;
+  if (!((gameConfig as any).shop.donationAmounts ?? []).includes(amount)) return { success: false };
   player.coins += amount;
   updatePlayerData(player);
-  playSound(gameConfig.sound.click);
-  return true;
+  playSound((gameConfig as any).sound.click);
+  return { success: true };
 }
-function useBooster(player: any) {
-  playSound(gameConfig.sound.mergeBlock);
-}
-function useExtraMove(player: any) {
-  playSound(gameConfig.sound.mergeBlock);
-}
-function unlockTheme(player: any, themeId: string) {
-  playSound(gameConfig.sound.click);
-}
+
 function playSound(src: string) {
-  if (gameConfig.sound.enabled && src) {
-    const audio = new Audio(src);
-    audio.play();
-  }
+  try {
+    if ((gameConfig as any).sound.enabled && src) {
+      const a = new Audio(src);
+      a.play();
+    }
+  } catch {}
 }
